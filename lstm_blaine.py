@@ -17,7 +17,7 @@ i.e. The Tensorflow graph will take a flat (1,480) features image as it was done
 perceptron MNIST Tensorflow tutorial, but then reshape it in a sequential manner with 16 features each and 30 time_steps.
 '''
 
-blaine = genfromtxt('./Desktop/Blaine_CSV_lstm.csv',delimiter=',')  # CSV transform to array
+blaine = genfromtxt('./Desktop/Blaine_norm_LSTM.csv',delimiter=',', dtype=float)  # CSV transform to array
 target = [row[0] for row in blaine]             # 1st column in CSV as the targets
 data = blaine[:, 1:481]                          #flat feature vectors
 X_train, X_test, y_train, y_test = train_test_split(data, target, test_size=0.05, random_state=42)
@@ -33,7 +33,9 @@ for i,j in enumerate(X_test):
         f.write(",".join([str(s) for s in k]) + '\n')
 f.close()
 
-
+class DoubleAdam(tf.train.GradientDescentOptimizer):
+  def _valid_dtypes(self):
+    return set([tf.float32, tf.float64])
 
 new_data = genfromtxt('cs-training.csv',delimiter=',')  # Training data
 new_test_data = genfromtxt('cs-testing.csv',delimiter=',')  # Test data
@@ -41,6 +43,7 @@ new_test_data = genfromtxt('cs-testing.csv',delimiter=',')  # Test data
 x_train=np.array([ i[1::] for i in new_data])
 ss = pd.Series(y_train)     #indexing series needed for later Pandas Dummies one-hot vectors
 y_train_onehot = pd.get_dummies(ss)
+y_hot = y_train_onehot.as_matrix(columns=None)
 
 x_test=np.array([ i[1::] for i in new_test_data])
 gg = pd.Series(y_test)
@@ -48,10 +51,10 @@ y_test_onehot = pd.get_dummies(gg)
 
 
 # General Parameters
-learning_rate = 0.001
+learning_rate = 0.1
 training_iters = 100000
-batch_size = 15
-display_step = 1
+batch_size = 33
+display_step = 2
 
 # Tensorflow LSTM Network Parameters
 n_input = 16 # MNIST data input (img shape: 28*28)
@@ -101,7 +104,7 @@ pred = RNN(x, weights, biases)
 
 # Define loss and optimizer
 cost = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(pred, y))
-optimizer = tf.train.GradientDescentOptimizer(learning_rate=learning_rate).minimize(cost)
+optimizer = DoubleAdam(tf.constant(learning_rate, tf.float64)).minimize(cost)
 
 # Evaluate model
 correct_pred = tf.equal(tf.argmax(pred,1), tf.argmax(y,1))
@@ -116,23 +119,22 @@ with tf.Session() as sess:
     step = 1
     # Keep training until reach max iterations
     while step * batch_size < training_iters:
-        batch_x = np.split(x_train, 33)
-        batch_y = np.split(y_train_onehot, 33)
+        batch_x = np.split(x_train, 15)
+        batch_y = np.split(y_hot, 15)
         for index in range(len(batch_x)):
             ouh1 = batch_x[index]
             ouh2 = batch_y[index]
             # Reshape data to get 28 seq of 28 elements
             ouh1 = np.reshape(ouh1,(batch_size, n_steps, n_input))        
             sess.run(optimizer, feed_dict={x: ouh1, y: ouh2})      # Run optimization op (backprop)
-            if step % display_step == 0:
-                # Calculate batch accuracy
-                acc = sess.run(accuracy, feed_dict={x: ouh1, y: ouh2})
+                            # Calculate batch accuracy
+            acc = sess.run(accuracy, feed_dict={x: ouh1, y: ouh2})
                 # Calculate batch loss
-                loss = sess.run(cost, feed_dict={x: ouh1, y: ouh2})
-                print("Iter " + str(step*batch_size) + ", Minibatch Loss= " + \
+            loss = sess.run(cost, feed_dict={x: ouh1, y: ouh2})
+            print("Iter " + str(step*batch_size) + ", Minibatch Loss= " + \
                     "{:.6f}".format(loss) + ", Training Accuracy= " + \
                     "{:.5f}".format(acc))
-                step += 1
+            step += 1
 print("Optimization Finished!")
     
    
